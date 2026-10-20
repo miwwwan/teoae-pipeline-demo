@@ -28,11 +28,11 @@ The main script calls `modul_analisisfix.proses_data_oae()` and extracts the fol
 
 ### 5. `csc` (Cross-Spectral Coherence)
 * **Pipeline Source:** Signal validation block evaluating phase and spectral consistency between Buffer A and Buffer B.
-* **Usage:** Validates recording quality to ensure clinical relevance (flagged as **VALID** if `CSC > 60%`).
+* **Usage:** Validates recording quality to ensure clinical relevance.
 
 ### 6. `rad_dist` (RAD2D Classification Distance)
 * **Pipeline Source:** Rule-based decision engine acting on non-linear Recurrence Quantification Analysis (RQA) features—Entropy (ENT), Determinism (DET), and Recurrence Rate (REC)—reduced via Principal Component Analysis (PCA).
-* **Usage:** Provides the quantitative evaluation distance metric against the classification threshold (`≤ 2.2` for Pass).
+* **Usage:** Provides the quantitative evaluation distance metric against the classification threshold (`≤ 2.47` for Pass).
 
 ---
 
