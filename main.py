@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-PROYEK SKRIPSI / RISET TEOAE - ITS BIOMEDICAL ENGINEERING
-File Utama (Main Orchestrator): Antarmuka & Pipeline Analisis Sinyal TEOAE
+THESIS PROJECT / TEOAE RESEARCH - ITS BIOMEDICAL ENGINEERING
+Main Orchestrator: TEOAE GUI & Signal Processing Pipeline Interface
 =============================================================================
 """
 
@@ -22,13 +22,13 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
 
 # =====================================================================
-# IMPOR MODUL ANALISIS & PEREKAMAN (Enkapsulasi Algoritma Inti)
+# MODULE IMPORTS (Encapsulation of Core Acquisition & DSP Algorithms)
 # =====================================================================
 import modul_perekaman
 import modul_analisisfix
 
 # ---------------------------------------------------------------------
-# CYBER / TERMINAL UI STYLESHEET (RASPI OPTIMIZED)
+# CYBER / TERMINAL UI STYLESHEET (RASPBERRY PI OPTIMIZED)
 # ---------------------------------------------------------------------
 QSS = """
 QWidget {
@@ -94,25 +94,25 @@ QTextEdit {
 """
 
 def _tag(text):
-    l = QLabel(f"// {text.upper()}")
-    l.setStyleSheet("color:#4a7a9c; font-size:10px; letter-spacing:2px; margin-bottom: 5px;")
-    return l
+    label = QLabel(f"// {text.upper()}")
+    label.setStyleSheet("color:#4a7a9c; font-size:10px; letter-spacing:2px; margin-bottom: 5px;")
+    return label
 
 class TouchLineEdit(QLineEdit):
-    _onboard_proc = None
+    _onboard_process = None
 
     def focusInEvent(self, event):
         super().focusInEvent(event)
         try:
-            if TouchLineEdit._onboard_proc is None or TouchLineEdit._onboard_proc.poll() is not None:
+            if TouchLineEdit._onboard_process is None or TouchLineEdit._onboard_process.poll() is not None:
                 env = os.environ.copy()
-                TouchLineEdit._onboard_proc = subprocess.Popen(
+                TouchLineEdit._onboard_process = subprocess.Popen(
                     ['onboard'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env
                 )
         except Exception as e:
-            print(f"[Keyboard] Gagal buka: {e}")
+            print(f"[Keyboard] Failed to launch virtual keyboard: {e}")
 
-class CommSignals(QObject):
+class CommunicationSignals(QObject):
     log_signal = pyqtSignal(str)
     recording_finished = pyqtSignal(bool)
     analysis_finished = pyqtSignal(object, str, list, float, float, float)
@@ -123,10 +123,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("TEOAE ANALYZER - COMMAND CENTER")
         self.setStyleSheet(QSS)
 
-        self.signals = CommSignals()
-        self.signals.log_signal.connect(self._add_log)
-        self.signals.recording_finished.connect(self._on_rec_done)
-        self.signals.analysis_finished.connect(self._on_analysis_done)
+        self.signals = CommunicationSignals()
+        self.signals.log_signal.connect(self._append_log)
+        self.signals.recording_finished.connect(self._on_recording_completed)
+        self.signals.analysis_finished.connect(self._on_analysis_completed)
 
         self.canvas_main = None
         self.canvas_snr = None
@@ -145,24 +145,24 @@ class MainWindow(QMainWindow):
         self.lbl_time.setText(datetime.datetime.now().strftime("%Y-%m-%d   %H:%M:%S"))
 
     def _setup_ui(self):
-        central = QWidget(); self.setCentralWidget(central)
-        layout = QVBoxLayout(central); layout.setContentsMargins(5,5,5,5); layout.setSpacing(5)
+        central_widget = QWidget(); self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget); main_layout.setContentsMargins(5,5,5,5); main_layout.setSpacing(5)
 
-        # --------- HEADER ---------
-        header = QHBoxLayout()
-        title_col = QVBoxLayout(); title_col.setSpacing(2)
+        # --------- HEADER SECTION ---------
+        header_layout = QHBoxLayout()
+        title_column = QVBoxLayout(); title_column.setSpacing(2)
         box_title = QHBoxLayout()
-        dot = QLabel("<>"); dot.setStyleSheet("color:#00e5ff; font-size:18px;")
-        t = QLabel("TEOAE  ANALYZER"); t.setStyleSheet("color:#ffffff; font-size:18px; font-weight:bold; letter-spacing:3px;")
-        box_title.addWidget(dot); box_title.addWidget(t); box_title.addStretch()
-        s = QLabel("ITS BIOMEDICAL ENG"); s.setStyleSheet("color:#2a4a6a; font-size:9px; letter-spacing:2px; margin-left: 18px;")
-        title_col.addLayout(box_title); title_col.addWidget(s)
-        header.addLayout(title_col); header.addStretch()
+        dot_label = QLabel("<>"); dot_label.setStyleSheet("color:#00e5ff; font-size:18px;")
+        title_text = QLabel("TEOAE  ANALYZER"); title_text.setStyleSheet("color:#ffffff; font-size:18px; font-weight:bold; letter-spacing:3px;")
+        box_title.addWidget(dot_label); box_title.addWidget(title_text); box_title.addStretch()
+        subtitle = QLabel("ITS BIOMEDICAL ENG"); subtitle.setStyleSheet("color:#2a4a6a; font-size:9px; letter-spacing:2px; margin-left: 18px;")
+        title_column.addLayout(box_title); title_column.addWidget(subtitle)
+        header_layout.addLayout(title_column); header_layout.addStretch()
         
         self.lbl_time = QLabel("YYYY-MM-DD   HH:MM:SS"); self.lbl_time.setStyleSheet("color:#4a7a9c; font-size:11px; margin-right: 15px;")
-        header.addWidget(self.lbl_time, alignment=Qt.AlignmentFlag.AlignBottom)
+        header_layout.addWidget(self.lbl_time, alignment=Qt.AlignmentFlag.AlignBottom)
         self.sys_ready_pill = QLabel("[ SYSTEM READY ]"); self.sys_ready_pill.setObjectName("StatusPill")
-        header.addWidget(self.sys_ready_pill, alignment=Qt.AlignmentFlag.AlignBottom)
+        header_layout.addWidget(self.sys_ready_pill, alignment=Qt.AlignmentFlag.AlignBottom)
         
         self.btn_exit = QPushButton("EXIT [X]")
         self.btn_exit.setFixedHeight(23)
@@ -175,14 +175,14 @@ class MainWindow(QMainWindow):
             QPushButton:hover { background-color: rgba(255, 23, 68, 0.2); }
         """)
         self.btn_exit.clicked.connect(self.close)
-        header.addWidget(self.btn_exit, alignment=Qt.AlignmentFlag.AlignBottom)
-        layout.addLayout(header)
+        header_layout.addWidget(self.btn_exit, alignment=Qt.AlignmentFlag.AlignBottom)
+        main_layout.addLayout(header_layout)
        
-        # --------- MAIN BODY ---------
-        body = QHBoxLayout(); body.setSpacing(15)
+        # --------- MAIN BODY SECTION ---------
+        body_layout = QHBoxLayout(); body_layout.setSpacing(15)
         
         # -- SIDEBAR (PIPELINE INPUT CONTROLS) --
-        sidebar = QVBoxLayout(); sidebar.setSpacing(15)
+        sidebar_layout = QVBoxLayout(); sidebar_layout.setSpacing(15)
         sidebar_widget = QWidget(); sidebar_widget.setFixedWidth(200)
         sl = QVBoxLayout(sidebar_widget); sl.setContentsMargins(0,0,0,0); sl.setSpacing(12)
         
@@ -195,67 +195,68 @@ class MainWindow(QMainWindow):
         self.in_file = TouchLineEdit(f"REC_{datetime.datetime.now().strftime('%H%M%S')}.csv")
         sl.addWidget(self.in_file)
 
-        self.btn_rec = QPushButton("▶ START RECORDING"); self.btn_rec.setObjectName("BtnRecord")
-        self.btn_rec.clicked.connect(self._start_rec); sl.addWidget(self.btn_rec)
+        self.btn_record = QPushButton("▶ START RECORDING"); self.btn_record.setObjectName("BtnRecord")
+        self.btn_record.clicked.connect(self._start_recording); sl.addWidget(self.btn_record)
 
-        self.btn_ana = QPushButton("⬡ ANALYZE DATA"); self.btn_ana.setObjectName("BtnAnalyze")
-        self.btn_ana.clicked.connect(self._start_analysis); sl.addWidget(self.btn_ana)
+        self.btn_analyze = QPushButton("⬡ ANALYZE DATA"); self.btn_analyze.setObjectName("BtnAnalyze")
+        self.btn_analyze.clicked.connect(self._start_analysis); sl.addWidget(self.btn_analyze)
         
         sl.addSpacing(5)
         sl.addWidget(_tag("System Log"))
         self.log_area = QTextEdit(); self.log_area.setReadOnly(True)
         sl.addWidget(self.log_area)
         
-        sidebar.addWidget(sidebar_widget); body.addLayout(sidebar)
+        sidebar_layout.addWidget(sidebar_widget); body_layout.addLayout(sidebar_layout)
 
-        # -- VISUALIZATION PANEL & HASIL ORCHESTRATION --
-        viz_panel = QVBoxLayout(); viz_panel.setSpacing(15)
+        # -- VISUALIZATION PANEL & ORCHESTRATION RESULTS --
+        visualization_panel = QVBoxLayout(); visualization_panel.setSpacing(15)
         self.banner_container = QHBoxLayout(); self.banner_container.setSpacing(10)
 
-        self.frame_res = QFrame(); self.frame_res.setObjectName("Panel")
-        self.lay_res = QHBoxLayout(self.frame_res)
-        self.lbl_res_title = QLabel("RESULT :"); self.lbl_res_title.setStyleSheet("font-weight:bold; color:#4a7a9c;")
-        self.lbl_res_val = QLabel("WAITING"); self.lbl_res_val.setStyleSheet("font-weight:bold; color:#4a7a9c;")
-        self.lay_res.addWidget(self.lbl_res_title); self.lay_res.addWidget(self.lbl_res_val); self.lay_res.addStretch()
+        self.frame_result = QFrame(); self.frame_result.setObjectName("Panel")
+        self.lay_result = QHBoxLayout(self.frame_result)
+        self.lbl_result_title = QLabel("RESULT :"); self.lbl_result_title.setStyleSheet("font-weight:bold; color:#4a7a9c;")
+        self.lbl_result_val = QLabel("WAITING"); self.lbl_result_val.setStyleSheet("font-weight:bold; color:#4a7a9c;")
+        self.lay_result.addWidget(self.lbl_result_title); self.lay_result.addWidget(self.lbl_result_val); self.lay_result.addStretch()
         
-        self.frame_rec = QFrame(); self.frame_rec.setObjectName("Panel")
-        self.lay_rec = QHBoxLayout(self.frame_rec)
-        self.lbl_rec_title = QLabel("RECORDING :"); self.lbl_rec_title.setStyleSheet("font-weight:bold; color:#4a7a9c;")
-        self.lbl_rec_val = QLabel("READY"); self.lbl_rec_val.setStyleSheet("font-weight:bold; color:#4a7a9c;")
-        self.lay_rec.addWidget(self.lbl_rec_title); self.lay_rec.addWidget(self.lbl_rec_val); self.lay_rec.addStretch()
+        self.frame_recording = QFrame(); self.frame_recording.setObjectName("Panel")
+        self.lay_recording = QHBoxLayout(self.frame_recording)
+        self.lbl_recording_title = QLabel("RECORDING :"); self.lbl_recording_title.setStyleSheet("font-weight:bold; color:#4a7a9c;")
+        self.lbl_recording_val = QLabel("READY"); self.lbl_recording_val.setStyleSheet("font-weight:bold; color:#4a7a9c;")
+        self.lay_recording.addWidget(self.lbl_recording_title); self.lay_recording.addWidget(self.lbl_recording_val); self.lay_recording.addStretch()
 
-        self.banner_container.addWidget(self.frame_res); self.banner_container.addWidget(self.frame_rec)
-        viz_panel.addLayout(self.banner_container)
+        self.banner_container.addWidget(self.frame_result); self.banner_container.addWidget(self.frame_recording)
+        visualization_panel.addLayout(self.banner_container)
         
-        # --- PANEL WAVEFORM & WWR ---
+        # --- TOP PANEL: WAVEFORM & WWR ---
         self.frame_top = QFrame(); self.frame_top.setObjectName("Panel")
         self.lay_top_main = QHBoxLayout(self.frame_top); self.lay_top_main.setContentsMargins(12,12,12,12)
 
-        self.lay_plot_kiri = QVBoxLayout()
-        self.lbl_wf_title = _tag("Sinyal TEOAE - Waveform")
-        self.lay_plot_kiri.addWidget(self.lbl_wf_title)
+        self.lay_plot_left = QVBoxLayout()
+        self.lbl_wf_title = _tag("TEOAE Signal - Waveform")
+        self.lay_plot_left.addWidget(self.lbl_wf_title)
         self.lbl_top = QLabel("Waiting for data stream..."); self.lbl_top.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lay_plot_kiri.addWidget(self.lbl_top)
-        self.lay_top_main.addLayout(self.lay_plot_kiri, stretch=8)
+        self.lay_plot_left.addWidget(self.lbl_top)
+        self.lay_top_main.addLayout(self.lay_plot_left, stretch=8)
 
-        self.lay_wwr_kanan = QVBoxLayout()
-        self.lay_wwr_kanan.setContentsMargins(10, 20, 20, 10); self.lay_wwr_kanan.addStretch()
+        self.lay_wwr_right = QVBoxLayout()
+        self.lay_wwr_right.setContentsMargins(10, 20, 20, 10); self.lay_wwr_right.addStretch()
         self.lbl_wwr_tag = QLabel("WWR"); self.lbl_wwr_tag.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_wwr_tag.setStyleSheet("color:#4a7a9c; font-size:36px; font-weight:bold; font-style:italic;")
         self.lbl_wwr_pct = QLabel("0.0%"); self.lbl_wwr_pct.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_wwr_pct.setStyleSheet("color:#ffffff; font-size:38px; font-weight:bold; font-style:italic;")
-        self.lay_wwr_kanan.addWidget(self.lbl_wwr_tag); self.lay_wwr_kanan.addWidget(self.lbl_wwr_pct)
-        self.lay_wwr_kanan.addStretch()
-        self.lay_top_main.addLayout(self.lay_wwr_kanan, stretch=2)
-        viz_panel.addWidget(self.frame_top, stretch=5)
+        self.lay_wwr_right.addWidget(self.lbl_wwr_tag); self.lay_wwr_right.addWidget(self.lbl_wwr_pct)
+        self.lay_wwr_right.addStretch()
+        self.lay_top_main.addLayout(self.lay_wwr_right, stretch=2)
+        visualization_panel.addWidget(self.frame_top, stretch=5)
 
-        bot_row = QHBoxLayout(); bot_row.setSpacing(15)
+        # --- BOTTOM ROW PANEL ---
+        bottom_row = QHBoxLayout(); bottom_row.setSpacing(15)
         self.frame_bot_l = QFrame(); self.frame_bot_l.setObjectName("Panel")
         self.lay_bot_l = QVBoxLayout(self.frame_bot_l); self.lay_bot_l.setContentsMargins(12,12,12,12)
         self.lay_bot_l.addWidget(_tag("SNR Bins - Signal VS Noise"))
         self.lbl_bot_l = QLabel("SNR Plot Area"); self.lbl_bot_l.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lay_bot_l.addWidget(self.lbl_bot_l)
-        bot_row.addWidget(self.frame_bot_l, stretch=5)
+        bottom_row.addWidget(self.frame_bot_l, stretch=5)
 
         self.frame_bot_r = QFrame(); self.frame_bot_r.setObjectName("Panel")
         self.lay_bot_r = QVBoxLayout(self.frame_bot_r); self.lay_bot_r.setContentsMargins(12,12,12,12)
@@ -270,69 +271,72 @@ class MainWindow(QMainWindow):
         self.lbl_rad_status = QLabel("WAITING"); self.lbl_rad_status.setStyleSheet("font-weight:bold; font-size:13px; color:#4a7a9c;")
         self.lay_rad_box.addWidget(self.lbl_rad_tag); self.lay_rad_box.addStretch(); self.lay_rad_box.addWidget(self.lbl_rad_status)
         self.lay_bot_r.addWidget(self.frame_rad); self.lay_bot_r.addStretch()
-        bot_row.addWidget(self.frame_bot_r, stretch=4)
+        bottom_row.addWidget(self.frame_bot_r, stretch=4)
 
-        viz_panel.addLayout(bot_row, stretch=4)
-        body.addLayout(viz_panel); layout.addLayout(body)
+        visualization_panel.addLayout(bottom_row, stretch=4)
+        body_layout.addLayout(visualization_panel); main_layout.addLayout(body_layout)
 
-        footer = QHBoxLayout()
+        # --------- FOOTER SECTION ---------
+        footer_layout = QHBoxLayout()
         self.lbl_footer_status = QLabel("WAITING - Ready"); self.lbl_footer_status.setStyleSheet("color:#00e5ff;")
         lbl_footer_branding = QLabel("ITS Biomed . 2026"); lbl_footer_branding.setStyleSheet("color:#2a4a6a;")
-        footer.addWidget(self.lbl_footer_status); footer.addStretch(); footer.addWidget(lbl_footer_branding); layout.addLayout(footer)
+        footer_layout.addWidget(self.lbl_footer_status); footer_layout.addStretch(); footer_layout.addWidget(lbl_footer_branding); main_layout.addLayout(footer_layout)
         
-    def _add_log(self, msg):
-        ts = datetime.datetime.now().strftime("%H:%M:%S")
-        self.log_area.append(f'<span style="color:#2a4a6a;">[{ts}]</span> <span style="color:#00e5ff;">{msg}</span>')
+    def _append_log(self, message):
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        self.log_area.append(f'<span style="color:#2a4a6a;">[{timestamp}]</span> <span style="color:#00e5ff;">{message}</span>')
 
-    def _start_rec(self):
-        self.btn_rec.setEnabled(False); self.btn_ana.setEnabled(False)
-        self._update_banner("RECORDING", "Capturing TEOAE signal...", "#ff9100")
-        threading.Thread(target=self._rec_worker, daemon=True).start()
+    def _start_recording(self):
+        self.btn_record.setEnabled(False); self.btn_analyze.setEnabled(False)
+        self._update_banner_status("RECORDING", "Capturing TEOAE signal...", "#ff9100")
+        threading.Thread(target=self._recording_worker, daemon=True).start()
 
-    def _rec_worker(self):
-        port, dur, fn = self.in_port.text(), int(self.in_dur.text()), self.in_file.text()
-        if not fn.endswith('.csv'): fn += '.csv'
-        ok, _ = modul_perekaman.rekam_data(port, 921600, dur, fn, log_callback=self.signals.log_signal.emit)
-        self.signals.recording_finished.emit(ok)
+    def _recording_worker(self):
+        port, duration, filename = self.in_port.text(), int(self.in_dur.text()), self.in_file.text()
+        if not filename.endswith('.csv'): filename += '.csv'
+        is_success, _ = modul_perekaman.rekam_data(port, 921600, duration, filename, log_callback=self.signals.log_signal.emit)
+        self.signals.recording_finished.emit(is_success)
 
-    def _on_rec_done(self, ok):
-        self.btn_rec.setEnabled(True); self.btn_ana.setEnabled(True)
-        if ok: self._update_banner("READY", "Data captured successfully.", "#00e5ff")
-        else: self._update_banner("FAILED", "Check serial connection.", "#ff1744")
+    def _on_recording_completed(self, is_success):
+        self.btn_record.setEnabled(True); self.btn_analyze.setEnabled(True)
+        if is_success: 
+            self._update_banner_status("READY", "Data captured successfully.", "#00e5ff")
+        else: 
+            self._update_banner_status("FAILED", "Check serial connection.", "#ff1744")
 
     def _start_analysis(self):
-        fn = self.in_file.text().strip()
-        if not fn.endswith('.csv'): fn += '.csv'
-        folder_csv = "/home/teoae/teoae/Data_Primer/csv"
-        full_path = os.path.join(folder_csv, fn)
+        filename = self.in_file.text().strip()
+        if not filename.endswith('.csv'): filename += '.csv'
+        csv_folder = "/home/teoae/teoae/Data_Primer/csv"
+        full_path = os.path.join(csv_folder, filename)
         if not os.path.exists(full_path): 
-            self._add_log(f"<span style='color:#ff1744;'>ERROR: '{fn}' not found!</span>"); return
-        self.btn_ana.setEnabled(False); self._add_log("Processing DSP Pipeline...")
-        threading.Thread(target=self._ana_worker, args=(full_path,), daemon=True).start()
+            self._append_log(f"<span style='color:#ff1744;'>ERROR: '{filename}' not found!</span>"); return
+        self.btn_analyze.setEnabled(False); self._append_log("Processing DSP Pipeline...")
+        threading.Thread(target=self._analysis_worker, args=(full_path,), daemon=True).start()
 
-    def _ana_worker(self, path_lengkap):
+    def _analysis_worker(self, full_file_path):
         try:
-            # Memanggil fungsi inti dari modul analisis sinyal terpisah
-            fig, status, snr_data, wwr, csc, rad_dist = modul_analisisfix.proses_data_oae(path_lengkap, log_callback=self.signals.log_signal.emit)
+            # Calling core analysis functions from the decoupled signal processing module
+            fig, status, snr_data, wwr, csc, rad_dist = modul_analisisfix.proses_data_oae(full_file_path, log_callback=self.signals.log_signal.emit)
             self.signals.analysis_finished.emit(fig, status, snr_data, wwr, csc, rad_dist)
         except Exception as e:
             self.signals.log_signal.emit(f"<span style='color:#ff1744;'>CRASH: {str(e)}</span>")
             self.signals.analysis_finished.emit(None, "ERROR", [], 0.0, 0.0, 0.0)
 
-    def _on_analysis_done(self, fig, status, snr_data, wwr, csc, rad_dist):
-        self.btn_ana.setEnabled(True)
+    def _on_analysis_completed(self, fig, status, snr_data, wwr, csc, rad_dist):
+        self.btn_analyze.setEnabled(True)
         if status == "ERROR" or fig is None: return
 
-        res_color = "#00e676" if status == "PASS" else "#ff1744"
-        self.lbl_res_title.setStyleSheet(f"font-weight:bold; color: {res_color};")
-        self.lbl_res_val.setText(status)
-        self.lbl_res_val.setStyleSheet(f"color: {res_color}; font-weight:bold; font-size:12px;")
-        self.frame_res.setStyleSheet(f"#Panel {{ border: 1px solid {res_color}; }}")
+        result_color = "#00e676" if status == "PASS" else "#ff1744"
+        self.lbl_result_title.setStyleSheet(f"font-weight:bold; color: {result_color};")
+        self.lbl_result_val.setText(status)
+        self.lbl_result_val.setStyleSheet(f"color: {result_color}; font-weight:bold; font-size:12px;")
+        self.frame_result.setStyleSheet(f"#Panel {{ border: 1px solid {result_color}; }}")
 
         rec_status = "VALID" if csc > 60 else "INVALID"
         rec_color = "#00e676" if csc > 60 else "#ff1744"
-        self.lbl_rec_val.setText(f"{rec_status} ({csc:.1f}%)")
-        self.frame_rec.setStyleSheet(f"#Panel {{ border: 1px solid {rec_color}; }}")
+        self.lbl_recording_val.setText(f"{rec_status} ({csc:.1f}%)")
+        self.frame_recording.setStyleSheet(f"#Panel {{ border: 1px solid {rec_color}; }}")
 
         wwr_color = "#00e676" if wwr >= 70 else "#ff1744"
         self.lbl_wwr_pct.setText(f"{wwr:.1f}%")
@@ -354,16 +358,16 @@ class MainWindow(QMainWindow):
                 if name in ['bottom', 'left']: spine.set_visible(True); spine.set_edgecolor("#1a2b3c")
                 else: spine.set_visible(False)
                     
-        self.canvas_main = FigureCanvas(fig); self.lay_plot_kiri.addWidget(self.canvas_main)
+        self.canvas_main = FigureCanvas(fig); self.lay_plot_left.addWidget(self.canvas_main)
         self._render_snr_bars(snr_data)
         self._render_numerics(snr_data)
 
-    def _update_banner(self, status, desc, color):
-        self.lbl_res_val.setText(status); self.lbl_res_val.setStyleSheet(f"color: {color}; font-weight:bold;")
-        self.frame_res.setStyleSheet(f"#Panel {{ border: 1px solid {color}; }}")
-        self.lbl_rec_val.setText(desc); self.lbl_rec_val.setStyleSheet(f"color: {color}; font-weight:bold;")
-        self.frame_rec.setStyleSheet(f"#Panel {{ border: 1px solid {color}; }}")
-        self.lbl_footer_status.setText(f"{status} - {desc}"); self.lbl_footer_status.setStyleSheet(f"color:{color};")
+    def _update_banner_status(self, status, description, color):
+        self.lbl_result_val.setText(status); self.lbl_result_val.setStyleSheet(f"color: {color}; font-weight:bold;")
+        self.frame_result.setStyleSheet(f"#Panel {{ border: 1px solid {color}; }}")
+        self.lbl_recording_val.setText(description); self.lbl_recording_val.setStyleSheet(f"color: {color}; font-weight:bold;")
+        self.frame_recording.setStyleSheet(f"#Panel {{ border: 1px solid {color}; }}")
+        self.lbl_footer_status.setText(f"{status} - {description}"); self.lbl_footer_status.setStyleSheet(f"color:{color};")
 
     def _render_snr_bars(self, snr_data):
         if self.lbl_bot_l: self.lbl_bot_l.deleteLater(); self.lbl_bot_l = None
@@ -388,24 +392,24 @@ class MainWindow(QMainWindow):
         
     def _render_numerics(self, snr_data):
         for i in reversed(range(self.num_grid.count())): 
-            w = self.num_grid.itemAt(i).widget()
-            if w: w.setParent(None)
+            widget = self.num_grid.itemAt(i).widget()
+            if widget: widget.setParent(None)
         headers = ["FREQ", "SNR", "STATUS"]
         for col, text in enumerate(headers):
             lbl = QLabel(text); lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             lbl.setStyleSheet("color:#2a4a6a; font-weight:bold; font-size:11px; border-bottom: 1px solid #1a2b3c; padding-bottom: 3px;")
             self.num_grid.addWidget(lbl, 0, col)
         for row_idx, row_data in enumerate(snr_data, start=1):
-            f_lbl = QLabel(f"{row_data[0]} Hz"); f_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            f_lbl.setStyleSheet("color:#4a7a9c; font-size: 11px;")
-            v_lbl = QLabel(f"{row_data[1]} dB"); v_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            v_lbl.setStyleSheet("color:#00e5ff; font-size: 11px; font-weight: bold;")
-            s_lbl = QLabel(f"{row_data[2]}"); s_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            c = "#00e676" if row_data[2]=="PASS" else "#ff9100"
-            s_lbl.setStyleSheet(f"color:{c}; font-weight:bold; font-size: 11px;")
-            self.num_grid.addWidget(f_lbl, row_idx, 0); self.num_grid.addWidget(v_lbl, row_idx, 1); self.num_grid.addWidget(s_lbl, row_idx, 2)
+            freq_label = QLabel(f"{row_data[0]} Hz"); freq_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            freq_label.setStyleSheet("color:#4a7a9c; font-size: 11px;")
+            val_label = QLabel(f"{row_data[1]} dB"); val_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            val_label.setStyleSheet("color:#00e5ff; font-size: 11px; font-weight: bold;")
+            stat_label = QLabel(f"{row_data[2]}"); stat_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            color_code = "#00e676" if row_data[2]=="PASS" else "#ff9100"
+            stat_label.setStyleSheet(f"color:{color_code}; font-weight:bold; font-size: 11px;")
+            self.num_grid.addWidget(freq_label, row_idx, 0); self.num_grid.addWidget(val_label, row_idx, 1); self.num_grid.addWidget(stat_label, row_idx, 2)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    win = MainWindow(); win.show()
+    window = MainWindow(); window.show()
     sys.exit(app.exec())
